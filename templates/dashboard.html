@@ -1,0 +1,77 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div style="max-width: 1000px; margin: 0 auto; padding: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <h1 style="color: var(--dark-bg); font-size: 1.8rem;">Minhas Unidades de Cultivo</h1>
+        <button onclick="document.getElementById('modalFazenda').style.display='flex'" class="btn btn-primary" style="background: var(--primary-green); border: none; padding: 10px 20px; border-radius: 8px; color: white; cursor: pointer; font-weight: 600;">
+            <i class="fas fa-plus"></i> Nova Unidade
+        </button>
+    </div>
+
+    {% if insights %}
+    <div style="margin-bottom: 35px; background: #fdfaff; padding: 20px; border-radius: 15px; border: 1px solid #e9d5ff; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.05);">
+        <h3 style="font-size: 0.9rem; color: #7c3aed; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; text-transform: uppercase; letter-spacing: 1px;">
+            <i class="fas fa-brain"></i> Insights Estratégicos da IA
+        </h3>
+        <div style="display: grid; gap: 12px;">
+            {% for insight in insights %}
+            <div style="padding: 15px; border-radius: 12px; border-left: 6px solid {{ '#ef4444' if insight.tipo == 'alerta' else '#3b82f6' }}; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <i class="fas {{ 'fa-exclamation-triangle' if insight.tipo == 'alerta' else 'fa-info-circle' }}" 
+                       style="color: {{ '#ef4444' if insight.tipo == 'alerta' else '#3b82f6' }}; font-size: 1.1rem;"></i>
+                    <span style="font-size: 0.9rem; color: #4b5563; line-height: 1.4;">{{ insight.msg }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 25px;">
+        {% for fazenda in fazendas %}
+        <div style="background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #eee; transition: transform 0.2s;">
+            <div style="padding: 20px; border-bottom: 1px solid #f5f5f5; background: #fcfdfc;">
+                <h2 style="margin: 0; color: #2d3436; font-size: 1.2rem;">{{ fazenda.nome }}</h2>
+                <small style="color: #636e72;"><i class="fas fa-map-marker-alt"></i> {{ fazenda.localizacao }}</small>
+            </div>
+            <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--primary-green); font-weight: 700; font-size: 0.8rem; background: #e8f5e9; padding: 4px 12px; border-radius: 20px;">
+                    {{ fazenda.hortalicas|length }} Lotes Ativos
+                </span>
+                <a href="{{ url_for('ver_fazenda', id=fazenda.id) }}" style="text-decoration: none; color: white; background: #2d3436; padding: 10px 20px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                    Gerenciar <i class="fas fa-chevron-right" style="font-size: 0.7rem;"></i>
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #ccc;">
+            <i class="fas fa-seedling" style="font-size: 3rem; margin-bottom: 15px;"></i>
+            <p>Nenhuma unidade cadastrada. Comece agora!</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div id="modalFazenda" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:1000; backdrop-filter: blur(4px);">
+    <div style="background:white; padding:35px; border-radius:20px; width:400px; box-shadow:0 20px 40px rgba(0,0,0,0.3);">
+        <h3 style="margin-top:0; color: #2d3436;">Nova Unidade de Cultivo</h3>
+        <p style="font-size: 0.85rem; color: #888; margin-bottom: 20px;">Preencha os dados da sua nova área de plantio.</p>
+        <form action="/add_fazenda" method="POST">
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-size:0.8rem; margin-bottom:5px; color:#666; font-weight: 600;">Nome da Unidade</label>
+                <input type="text" name="nome" placeholder="Ex: Estufa Norte" required style="width:100%; padding:12px; border:1px solid #ddd; border-radius:10px; font-size: 0.9rem;">
+            </div>
+            <div style="margin-bottom:25px;">
+                <label style="display:block; font-size:0.8rem; margin-bottom:5px; color:#666; font-weight: 600;">Localização / Descrição</label>
+                <input type="text" name="localizacao" placeholder="Ex: Setor A-12 ou Varanda" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:10px; font-size: 0.9rem;">
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end;">
+                <button type="button" onclick="document.getElementById('modalFazenda').style.display='none'" style="background:#f5f5f5; border:none; padding:12px 20px; border-radius:10px; cursor:pointer; font-weight: 600; color: #666;">Cancelar</button>
+                <button type="submit" style="background:var(--primary-green); color:white; border:none; padding:12px 25px; border-radius:10px; cursor:pointer; font-weight:600;">Criar Unidade</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
