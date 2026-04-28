@@ -65,5 +65,8 @@ templates/: Arquivos de interface (Jinja2).
 
 static/: Estilização e recursos visuais.
 
-✒️ Autor
-Julio Cesar - Desenvolvedor e Estudante de Ciência da Computação https://github.com/djuliocesar2/biourbanteste
+✒️ Autores
+Julio Cesar - Desenvolvedor e Estudante de Ciência da Computação.
+Henrique Barros - Desenvolvedor e Estudante de Ciência da Computação.
+Igor Matos - Desenvolvedor e Estudante de Ciência da Computação.
+Luan Martiniano - Desenvolvedor e Estudante de Ciência da Computação.
