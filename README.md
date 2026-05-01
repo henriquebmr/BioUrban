@@ -68,4 +68,4 @@ static/: Estilização e recursos visuais.
 ✒️ Autores
 Julio Cesar - Desenvolvedor e Estudante de Ciência da Computação.
 Henrique Barros - Desenvolvedor e Estudante de Ciência da Computação.
-Igor Matos - Desenvolvedor e Estudante de Ciência da Computação.
+Igor Matos - Desenvolvedor e Estudante de Ciência da Computação..

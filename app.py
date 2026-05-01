@@ -86,14 +86,24 @@ def ver_fazenda(id):
     fazenda = Fazenda.query.get_or_404(id)
     if fazenda.usuario_id != current_user.id: return "Acesso Negado", 403
     
-    # Filtro opcional via URL (?filtro=Crescendo)
     filtro = request.args.get('filtro', 'Todos')
     hoje = datetime.now().date()
     contagem_variedades = {}
     total_ciclos, qtd_ativas = 0, 0
     previsoes_ia = {}
 
-    # 1. PROCESSAMENTO DE LOTES E ALERTAS
+    # --- INICIALIZAÇÃO DO DICIONÁRIO STATS (CORREÇÃO DO ERRO) ---
+    stats = {
+        'total_ativas': 0,
+        'tempo_medio': 0,
+        'total_h2o': 0,
+        'media_h2o': 0,
+        'filtro_atual': filtro,
+        'previsoes': {},
+        'insight_h2o': None
+    }
+
+    # 1. PROCESSAMENTO DE LOTES (Cálculo de dias e atrasos)
     for h in fazenda.hortalicas:
         if h.status != 'Colhido':
             if h.ciclo_estimado:
@@ -108,7 +118,7 @@ def ver_fazenda(id):
             except:
                 h.atrasada = False; h.dias_restantes = 0
 
-    # 2. IA PREDITIVA: PREVISÃO DE COLHEITA (Regressão Linear)
+    # 2. IA PREDITIVA (COLHEITA) - Baseada em Histórico
     historico = Hortalica.query.filter_by(fazenda_id=id, status='Colhido').all()
     if len(historico) >= 2:
         tipos_ativos = set([h.nome for h in fazenda.hortalicas if h.status != 'Colhido'])
@@ -127,49 +137,37 @@ def ver_fazenda(id):
                     previsoes_ia[tipo] = round(float(pred[0]), 1)
                 except: continue
 
-    # 3. IA PRESCRITIVA: ANÁLISE DINÂMICA DE CONSUMO (Gatilhos 1L e 2L)
-    insight_h2o = None
-    # Pegamos apenas os últimos 3 registros para a IA ser mais rápida na resposta
-    registros = RegistroHidrico.query.filter_by(fazenda_id=id).order_by(RegistroHidrico.id.desc()).limit(3).all()
-    
+    # 3. PROCESSAMENTO HÍDRICO EXPANDIDO (IoT)
+    registros = RegistroHidrico.query.filter_by(fazenda_id=id).order_by(RegistroHidrico.id.desc()).limit(15).all()
     if registros:
-        media_local = sum(r.consumo_litros for r in registros) / len(registros)
+        soma_h2o = sum(r.consumo_litros for r in registros)
+        stats['total_h2o'] = round(soma_h2o, 2)
+        stats['media_h2o'] = round(soma_h2o / len(registros), 2)
         
-        if media_local < 1.0:
-            insight_h2o = {
-                "tipo": "alerta", 
-                "msg": f"Consumo baixo ({media_local:.2f}L). Aumente a irrigação para garantir a hidratação das raízes."
-            }
-        elif media_local > 2.0:
-            insight_h2o = {
-                "tipo": "perigo", 
-                "msg": f"Consumo elevado ({media_local:.2f}L). Reduza a irrigação para evitar desperdício e saturação."
-            }
+        # IA Prescritiva BioUrban (Thresholds 1L e 2L)
+        if stats['media_h2o'] >= 2.0:
+            stats['insight_h2o'] = {"tipo": "perigo", "msg": f"Consumo elevado ({stats['media_h2o']}L). Reduza o fluxo para evitar desperdício."}
+        elif stats['media_h2o'] <= 1.0:
+            stats['insight_h2o'] = {"tipo": "alerta", "msg": f"Consumo baixo ({stats['media_h2o']}L). Aumente a irrigação para hidratação das raízes."}
         else:
-            insight_h2o = {
-                "tipo": "sucesso", 
-                "msg": f"Nível de irrigação ideal ({media_local:.2f}L). Mantenha o fluxo atual para este cultivo."
-            }
+            stats['insight_h2o'] = {"tipo": "sucesso", "msg": f"Nível ideal ({stats['media_h2o']}L). Mantenha o fluxo atual."}
 
-    # Gráficos e Estatísticas
-    registros.reverse()
-    labels_h2o = [r.data_leitura[8:10]+"/"+r.data_leitura[5:7] for r in registros]
-    dados_h2o = [r.consumo_litros for r in registros]
-    tempo_medio = round(total_ciclos / qtd_ativas, 1) if qtd_ativas > 0 else 0
+    # Atualizando métricas finais no stats
+    stats['total_ativas'] = qtd_ativas
+    stats['tempo_medio'] = round(total_ciclos / qtd_ativas, 1) if qtd_ativas > 0 else 0
+    stats['previsoes'] = previsoes_ia
 
-    # Lógica de Filtro para a Tabela
+    # Dados para Gráficos
+    registros_grafico = list(registros)
+    registros_grafico.reverse()
+    labels_h2o = [r.data_leitura[8:10]+"/"+r.data_leitura[5:7] for r in registros_grafico]
+    dados_h2o = [r.consumo_litros for r in registros_grafico]
+
+    # Filtro da Tabela
     if filtro == 'Crescendo': hortalicas_exibidas = [h for h in fazenda.hortalicas if h.status != 'Colhido']
     elif filtro == 'Colhido': hortalicas_exibidas = [h for h in fazenda.hortalicas if h.status == 'Colhido']
     else: hortalicas_exibidas = fazenda.hortalicas
 
-    stats = {
-        'total_ativas': qtd_ativas, 
-        'tempo_medio': tempo_medio, 
-        'previsoes': previsoes_ia,
-        'insight_h2o': insight_h2o,
-        'filtro_atual': filtro
-    }
-    
     return render_template('index.html', fazenda=fazenda, hortalicas=hortalicas_exibidas, 
                            stats=stats, chart_data=contagem_variedades, 
                            labels_h2o=labels_h2o, dados_h2o=dados_h2o, hoje=hoje)
