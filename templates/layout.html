@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BioUrban Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-green: #3A7B50; --dark-bg: #1e3d29; --off-white: #fcfcfc; --light-bg: #f8faf8; --danger-red: #E15244;
+        }
+        body { font-family: 'Inter', sans-serif; margin: 0; display: flex; background-color: var(--light-bg); }
+        .sidebar { width: 260px; background: var(--dark-bg); height: 100vh; position: fixed; color: white; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 1000; }
+        .sidebar-header { padding: 25px 15px; text-align: center; background-color: var(--off-white); margin-bottom: 20px; }
+        .sidebar-header img { width: 190px; height: auto; }
+        .nav-link { display: flex; align-items: center; color: rgba(255,255,255,0.8); padding: 15px 25px; text-decoration: none; transition: 0.3s ease; }
+        .nav-link:hover { background: var(--primary-green); color: white; }
+        .nav-link i { margin-right: 15px; width: 20px; }
+        .content { margin-left: 260px; padding: 40px; width: calc(100% - 260px); min-height: 100vh; }
+        .btn { padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; border: none; display: inline-flex; align-items: center; gap: 8px; transition: 0.3s; text-decoration: none; }
+        .btn-primary { background: var(--primary-green); color: white; }
+        .btn-danger { background: var(--danger-red); color: white; }
+        .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
+        .status-crescendo { background: #e3f2fd; color: #1976d2; }
+        .status-colhido { background: #e8f5e9; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="{{ url_for('dashboard') }}">
+                <img src="{{ url_for('static', filename='images/LOGO.png') }}" alt="Logo BioUrban">
+            </a>
+        </div>
+        <nav>
+            <a href="{{ url_for('dashboard') }}" class="nav-link"><i class="fas fa-th-large"></i> Painel de Controle</a>
+            <a href="/logout" class="nav-link" style="margin-top: 20px; color: #ffb3b3;"><i class="fas fa-sign-out-alt"></i> Sair do Sistema</a>
+        </nav>
+    </div>
+    <div class="content">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

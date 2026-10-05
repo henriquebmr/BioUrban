@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block content %}
+<div style="max-width: 400px; margin: 80px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    <h2 style="text-align: center; color: var(--primary-green); margin-bottom: 20px;">Criar Conta BioUrban</h2>
+    <form method="POST">
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; color: #666;">Usuário</label>
+            <input type="text" name="username" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+        </div>
+        <div style="margin-bottom: 25px;">
+            <label style="display: block; margin-bottom: 5px; color: #666;">Senha</label>
+            <input type="password" name="password" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: bold;">Registrar</button>
+    </form>
+    <p style="text-align: center; margin-top: 15px; font-size: 0.9rem;">
+        Já tem uma conta? <a href="{{ url_for('login') }}" style="color: var(--primary-green); font-weight: bold; text-decoration: none;">Faça Login</a>
+    </p>
+</div>
+{% endblock %}
