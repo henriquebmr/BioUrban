@@ -1,0 +1,712 @@
+{% extends "layout.html" %}
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+    /* Estilos de Animação e Badges */
+    .spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid rgba(52, 152, 219, 0.3);
+        border-radius: 50%;
+        border-top-color: #3498DB;
+        animation: spin 1s linear infinite;
+        margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status-badge {
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+    .status-crescendo { background: #e3f2fd; color: #1976d2; }
+    .status-colhido { background: #e8f5e9; color: #2e7d32; }
+    
+    .ia-badge {
+        margin-top: 8px;
+        color: #6d28d9;
+        font-weight: 700;
+        background: #f3e8ff;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 0.7rem;
+        border: 1px solid #c084fc;
+        box-shadow: 0 2px 4px rgba(109, 40, 217, 0.1);
+    }
+
+    .filter-btn {
+        text-decoration: none;
+        padding: 6px 15px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        color: #666;
+        background: #f5f5f5;
+        transition: 0.3s;
+    }
+    .filter-btn.active {
+        background: var(--primary-green);
+        color: white;
+    }
+
+    /* ESTILOS PARA A PLANTA EM FOCO */
+    .btn-monitorar {
+        background: #f3f4f6;
+        color: #4b5563;
+        border: 1px solid #d1d5db;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: 0.3s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .btn-monitorar:hover { background: #e5e7eb; }
+    
+    .btn-monitorar.focado {
+        background: #10b981;
+        color: white;
+        border-color: #059669;
+    }
+    
+    .row-focada {
+        background-color: #f0fdf4 !important;
+        border-left: 4px solid #10b981 !important;
+    }
+    
+    .badge-umidade {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: bold;
+        margin-top: 5px;
+    }
+    .badge-seco { background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; }
+    .badge-bom { background: #dcfce7; color: #22c55e; border: 1px solid #86efac; }
+    .badge-encharcado { background: #dbeafe; color: #3b82f6; border: 1px solid #93c5fd; }
+
+    /* Estilos do Card Flutuante de Dicas (Estilo Jogo) */
+    .dica-flutuante {
+    position: fixed;
+    top: 350px;
+    left: 20px;
+    width: 220px;
+    box-sizing: border-box;
+    background: white;
+    border-left: 4px solid #10b981;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    padding: 15px 20px;
+    z-index: 1000;
+    animation: fadeInOut 0.5s ease-in-out;
+    transition: all 0.5s ease;
+}
+    .dica-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+    .dica-titulo {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        font-weight: 800;
+        color: #10b981;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .dica-texto {
+        font-size: 0.8rem;
+        color: #4b5563;
+        margin: 0;
+        line-height: 1.4;
+    }
+    .dica-fechar {
+        background: none;
+        border: none;
+        color: #9ca3af;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+    .dica-fechar:hover { color: #4b5563; }
+</style>
+
+<div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+    <!-- CABEÇALHO -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div>
+            <a href="{{ url_for('dashboard') }}" style="color: var(--primary-green); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; font-size: 0.9rem;">
+                <i class="fas fa-arrow-left"></i> Voltar ao Painel
+            </a>
+            <h1 style="margin: 5px 0; color: var(--dark-bg); font-size: 1.6rem;">{{ fazenda.nome }}</h1>
+            <small style="color: #888;"><i class="fas fa-map-marker-alt"></i> {{ fazenda.localizacao }}</small>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <a href="/exportar_csv/{{ fazenda.id }}" class="btn" style="background: #f0f4f1; color: var(--primary-green); border: 1px solid #d1dbd3; font-size: 0.8rem; text-decoration: none; padding: 8px 15px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-file-export"></i> Exportar CSV
+            </a>
+        </div>
+    </div>
+
+    <!-- DASHBOARD SUPERIOR (METRICAS + VARIEDADES + IA PRESCRITIVA) -->
+    <div style="display: grid; grid-template-columns: 200px 1.2fr 1.8fr; gap: 20px; margin-bottom: 25px; align-items: start;">
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <div style="background: #f8faf8; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #eee;">
+                <small style="color: #888; text-transform: uppercase; font-weight: 700; font-size: 0.65rem;">Lotes em Cultivo</small>
+                <span style="display: block; font-size: 1.8rem; font-weight: bold; color: var(--primary-green);">{{ stats.total_ativas }}</span>
+            </div>
+            <div style="background: #f8faf8; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #eee;">
+                <small style="color: #888; text-transform: uppercase; font-weight: 700; font-size: 0.65rem;">Tempo Médio Ciclo</small>
+                <span style="display: block; font-size: 1.8rem; font-weight: bold; color: #2C3E50;">{{ stats.tempo_medio }}d</span>
+            </div>
+        </div>
+
+        <div style="background: white; border: 1px solid #eee; padding: 15px; border-radius: 12px; min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <small style="color: #888; font-weight: 700; font-size: 0.65rem; margin-bottom: 10px; text-transform: uppercase;">Variedades Plantadas</small>
+            <div style="width: 100%; max-width: 130px;">
+                <canvas id="varietyChart"></canvas>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <div style="background: #f8faf8; padding: 20px; border-radius: 12px; border: 1px solid #eee;">
+                <small style="color: #888; text-transform: uppercase; font-weight: 700; font-size: 0.65rem; display: block; margin-bottom: 5px;">Média Recente da Planta Monitorada</small>
+                <span style="font-size: 1.8rem; font-weight: bold; color: #3498DB;">{{ stats.media_h2o }}%</span>
+            </div>
+            {% if stats.insight_h2o %}
+            <div style="background: white; border-radius: 12px; border: 1px solid #eee; padding: 12px 15px; display: flex; align-items: center; gap: 12px; border-left: 4px solid {% if stats.insight_h2o.tipo == 'perigo' %}#e74c3c{% elif stats.insight_h2o.tipo == 'alerta' %}#f1c40f{% else %}#2ecc71{% endif %};">
+                <div style="background: #f3e8ff; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="fas fa-brain" style="color: #8e44ad; font-size: 0.8rem;"></i>
+                </div>
+                <div style="flex: 1;">
+                    <small style="color: #8e44ad; font-weight: 800; font-size: 0.55rem; text-transform: uppercase; display: block;">IA Prescritiva BioUrban</small>
+                    <p style="margin: 0; font-size: 0.75rem; color: #444;">{{ stats.insight_h2o.msg }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- PAINEL COM DOIS GRÁFICOS SEPARADOS (SIMULADOR x SENSOR FÍSICO) -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+        
+        <!-- CARD 1: SIMULADOR VIRTUAL -->
+        <div style="background: white; border-radius: 12px; border: 1px solid #eee; border-top: 4px solid #3498DB; padding: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 0.85rem; color: #2C3E50; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-desktop" style="color: #3498DB;"></i> Simulador Virtual
+                </h3>
+                <button id="btnSimulador" onclick="toggleSimulador({{ fazenda.id }})" style="border: none; padding: 5px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: bold; cursor: pointer; transition: 0.3s; display: flex; align-items: center; gap: 6px; background: #e0e0e0; color: #555;">
+                    <i class="fas fa-power-off"></i> <span id="lblSimulador">Simulador: OFF</span>
+                </button>
+            </div>
+            <div style="height: 140px; width: 100%;">
+                <canvas id="chartSimulador"></canvas>
+            </div>
+        </div>
+
+        <!-- CARD 2: SENSOR FÍSICO ESP32 -->
+        <div style="background: white; border-radius: 12px; border: 1px solid #eee; border-top: 4px solid #2ECC71; padding: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 0.85rem; color: #2C3E50; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-microchip" style="color: #2ECC71;"></i> Sensor Físico (ESP32)
+                </h3>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 0.65rem; background: #e8f5e9; color: #2e7d32; padding: 3px 10px; border-radius: 12px; font-weight: bold;">
+                        <i class="fas fa-wifi"></i> Hardware Real
+                    </span>
+                    <button id="btnToggleSensor" onclick="toggleSensorFisico()" style="border: none; padding: 5px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: bold; cursor: pointer; transition: 0.3s; display: flex; align-items: center; gap: 6px; background: #e0e0e0; color: #555;">
+                        <i class="fas fa-power-off"></i> <span id="lblSensor">Sensor: OFF</span>
+                    </button>
+                </div>
+            </div>
+            <div style="height: 140px; width: 100%;">
+                <canvas id="chartSensor"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ÁREA DE GESTÃO DE LOTES (FORMULÁRIO + TABELA) -->
+    <div style="display: flex; flex-direction: column; gap: 25px; width: 100%; clear: both;">
+        
+       <!-- FORMULÁRIO -->
+        <div style="background: #fdfdfd; padding: 30px; border-radius: 12px; border: 1px solid #f0f0f0;">
+            <h4 style="margin: 0 0 20px 0; font-size: 0.85rem; color: #444; font-weight: 700; text-transform: uppercase;">Registrar Novo Lote de Plantio</h4>
+            <form action="/add_hortalica/{{ fazenda.id }}" method="POST" style="display: grid; grid-template-columns: 2fr 2fr 1fr 1fr auto; gap: 15px; align-items: end; width: 100%;">
+                
+                <div>
+                    <label style="font-size: 0.75rem; color: #666; margin-bottom: 8px; display: block; font-weight: 600;">Espécie / Nome</label>
+                    <input type="text" name="nome" placeholder="Ex: Alface Mimosa" required style="width: 100%; height: 46px; padding: 0 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; box-sizing: border-box;">
+                </div>
+
+                <div>
+                    <label style="font-size: 0.75rem; color: #666; margin-bottom: 8px; display: block; font-weight: 600;">Tipo de Planta (Necessidade)</label>
+                    <select name="categoria_hidrica" style="width: 100%; height: 46px; padding: 0 32px 0 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.85rem; background: white; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        <option value="hortalica">Hortaliças Comuns (40%-70%)</option>
+                        <option value="arida">Cactos e Suculentas (10%-30%)</option>
+                        <option value="tropical">Plantas Tropicais (60%-90%)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label style="font-size: 0.75rem; color: #666; margin-bottom: 8px; display: block; font-weight: 600;">Data de Plantio</label>
+                    <input type="date" name="data_plantio" required style="width: 100%; height: 46px; padding: 0 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; box-sizing: border-box;">
+                </div>
+
+                <div>
+                    <label style="font-size: 0.75rem; color: #666; margin-bottom: 8px; display: block; font-weight: 600;">Ciclo (Dias)</label>
+                    <input type="number" name="ciclo_estimado" placeholder="Ex: 30" style="width: 100%; height: 46px; padding: 0 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; box-sizing: border-box;">
+                </div>
+
+                <div>
+                    <button type="submit" style="width: 100%; height: 46px; background: var(--primary-green); border: none; padding: 0 20px; border-radius: 8px; color: white; cursor: pointer; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+
+            </form>
+        </div>
+
+        <!-- MONITORAMENTO -->
+        <div style="width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="font-size: 0.9rem; color: #444; font-weight: 700;">Monitoramento de Lotes</h3>
+                <div style="display: flex; gap: 8px;">
+                    <a href="?filtro=Todos" class="filter-btn {{ 'active' if stats.filtro_atual == 'Todos' }}">Todos</a>
+                    <a href="?filtro=Crescendo" class="filter-btn {{ 'active' if stats.filtro_atual == 'Crescendo' }}">Crescendo</a>
+                    <a href="?filtro=Colhido" class="filter-btn {{ 'active' if stats.filtro_atual == 'Colhido' }}">Colhido</a>
+                </div>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="text-align: left; background: #f8faf8; border-bottom: 2px solid #eee;">
+                        <th style="padding: 15px; color: #999; font-size: 0.7rem; text-transform: uppercase;">Lote / Início</th>
+                        <th style="padding: 15px; color: #999; font-size: 0.7rem; text-transform: uppercase;">Umidade Atual / Recomendação</th>
+                        <th style="padding: 15px; color: #999; font-size: 0.7rem; text-transform: uppercase;">Ciclo / IA Preditiva</th>
+                        <th style="padding: 15px; color: #999; font-size: 0.7rem; text-transform: uppercase;">Estado Atual</th>
+                        <th style="padding: 15px; color: #999; font-size: 0.7rem; text-transform: uppercase; text-align: center;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in hortalicas %}
+                    <tr id="linha-planta-{{ h.id }}" style="border-bottom: 1px solid #eee;" class="{{ 'row-focada' if h.id == planta_foco_id else '' }}">
+                        <td style="padding: 15px;">
+                            <div style="font-weight: 600; color: #333; font-size: 1.1rem;">{{ h.nome }}</div>
+                            <small style="color: #aaa;">Plantado em {{ h.data_plantio }}</small>
+                        </td>
+                        
+                        <!-- COLUNA: UMIDADE, BOTÃO E TEXTO DE ORIENTAÇÃO -->
+                        <td style="padding: 15px; min-width: 220px;">
+                            {% if h.status != 'Colhido' %}
+                                <div style="margin-bottom: 6px;">
+                                    <button id="btn-foco-{{ h.id }}" onclick="focarPlanta({{ h.id }})" class="btn-monitorar {{ 'focado' if h.id == planta_foco_id else '' }}">
+                                        <i class="fas fa-crosshairs"></i> {{ 'Monitorando...' if h.id == planta_foco_id else 'Monitorar Planta' }}
+                                    </button>
+                                </div>
+                                
+                                {% set u = h.umidade_atual or 0 %}
+                                {% set cat = h.categoria_hidrica or 'hortalica' %}
+                                
+                                {% set badge_class = 'badge-bom' %}
+                                {% set texto_status = 'Umidade Adequada' %}
+                                
+                                {% if cat == 'arida' %}
+                                    {% if u < 5 %}{% set badge_class = 'badge-seco' %}{% set texto_status = 'Aumentar rega (Seco)' %}
+                                    {% elif u > 40 %}{% set badge_class = 'badge-encharcado' %}{% set texto_status = 'Diminuir rega (Excesso)' %}{% endif %}
+                                {% elif cat == 'tropical' %}
+                                    {% if u < 50 %}{% set badge_class = 'badge-seco' %}{% set texto_status = 'Aumentar rega (Seco)' %}
+                                    {% elif u > 90 %}{% set badge_class = 'badge-encharcado' %}{% set texto_status = 'Diminuir rega (Excesso)' %}{% endif %}
+                                {% else %}
+                                    {% if u < 30 %}{% set badge_class = 'badge-seco' %}{% set texto_status = 'Aumentar rega (Seco)' %}
+                                    {% elif u > 70 %}{% set badge_class = 'badge-encharcado' %}{% set texto_status = 'Diminuir rega (Excesso)' %}{% endif %}
+                                {% endif %}
+                                
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span id="badge-umidade-{{ h.id }}" class="badge-umidade {{ badge_class }}" data-categoria="{{ cat }}">
+                                        <i class="fas fa-tint"></i> <span class="valor">{{ "%.1f"|format(u) }}</span>%
+                                    </span>
+                                    <small id="texto-status-{{ h.id }}" style="font-size: 0.7rem; font-weight: bold; color: #555;">{{ texto_status }}</small>
+                                </div>
+                            {% else %}
+                                <span style="color: #ccc; font-size: 0.8rem;">-</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td style="padding: 15px;">
+                            {% if h.status != 'Colhido' %}
+                                <b style="color: var(--primary-green); font-size: 1rem;">{{ h.data_plantio | dias_cultivo }} dias</b>
+                                <div style="font-size: 0.7rem; margin-top: 3px;">
+                                    {% if h.atrasada %}<span style="color: #e74c3c; font-weight: bold;">⚠️ ATRASADA</span>
+                                    {% else %}<span style="color: #7f8c8d;">Faltam {{ h.dias_restantes }} dias</span>{% endif %}
+                                </div>
+                                {% if stats.previsoes.get(h.nome) %}
+                                <div class="ia-badge"><i class="fas fa-brain"></i> IA sugere: {{ stats.previsoes[h.nome] }} dias</div>
+                                {% endif %}
+                            {% else %}
+                                <span style="color: #ccc; font-size: 0.8rem;">Colhido em {{ h.data_colheita }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 15px;">
+                            {% if h.status != 'Colhido' %}
+                                <span class="status-badge status-crescendo"><div class="spinner"></div> CRESCENDO</span>
+                            {% else %}
+                                <span class="status-badge status-colhido">COLHIDO</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 15px; text-align: center;">
+                            {% if h.status != 'Colhido' %}
+                            <form action="/colher/{{ h.id }}/{{ fazenda.id }}" method="POST" style="display: inline;">
+                                <input type="hidden" name="data_colheita" value="{{ hoje }}">
+                                <button type="submit" title="Colher" style="border:none; background:none; color:var(--primary-green); cursor:pointer; font-size: 1.2rem; margin-right: 12px;">
+                                    <i class="fas fa-check-circle"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            
+                            <a href="/editar_hortalica/{{ h.id }}" title="Editar" style="color: #3498DB; font-size: 1.1rem; margin-right: 12px;"><i class="fas fa-edit"></i></a>
+                            
+                            <a href="/deletar/{{ h.id }}/{{ fazenda.id }}" onclick="return confirm('Excluir este lote?')" style="color: #ec7063; font-size: 1.1rem;"><i class="fas fa-trash-alt"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const FAZENDA_ID = {{ fazenda.id }};
+    let PLANTA_FOCO_ATUAL = {{ planta_foco_id if planta_foco_id else 'null' }};
+
+    function focarPlanta(hortalicaId) {
+    fetch(`/api/focar_planta/${hortalicaId}`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+
+            // ==============================
+            // DESATIVAR MONITORAMENTO
+            // ==============================
+            if (data.status === 'desativado') {
+
+                // Remove o destaque de todas as plantas
+                document.querySelectorAll('tr[id^="linha-planta-"]').forEach(el => {
+                    el.classList.remove('row-focada');
+                });
+
+                // Volta todos os botões para "Monitorar Planta"
+                document.querySelectorAll('button[id^="btn-foco-"]').forEach(btn => {
+                    btn.classList.remove('focado');
+                    btn.innerHTML = '<i class="fas fa-crosshairs"></i> Monitorar Planta';
+                });
+
+                // Limpa a planta atualmente monitorada
+                PLANTA_FOCO_ATUAL = null;
+
+                // Limpa os gráficos
+                chartSensorESP32.data.labels = [];
+                chartSensorESP32.data.datasets[0].data = [];
+                chartSensorESP32.update();
+
+                chartSimulador.data.labels = [];
+                chartSimulador.data.datasets[0].data = [];
+                chartSimulador.update();
+
+                return;
+            }
+
+            // ==============================
+            // ATIVAR MONITORAMENTO
+            // ==============================
+            if (data.status === 'sucesso') {
+
+                // Remove o destaque das outras plantas
+                document.querySelectorAll('tr[id^="linha-planta-"]').forEach(el => {
+                    el.classList.remove('row-focada');
+                });
+
+                document.querySelectorAll('button[id^="btn-foco-"]').forEach(btn => {
+                    btn.classList.remove('focado');
+                    btn.innerHTML = '<i class="fas fa-crosshairs"></i> Monitorar Planta';
+                });
+
+                // Destaca a planta selecionada
+                document
+                    .getElementById(`linha-planta-${hortalicaId}`)
+                    .classList.add('row-focada');
+
+                const btn = document.getElementById(`btn-foco-${hortalicaId}`);
+
+                btn.classList.add('focado');
+                btn.innerHTML = '<i class="fas fa-crosshairs"></i> Monitorando...';
+
+                // Define a planta atualmente monitorada
+                PLANTA_FOCO_ATUAL = hortalicaId;
+
+                // Limpa os gráficos anteriores
+                chartSensorESP32.data.labels = [];
+                chartSensorESP32.data.datasets[0].data = [];
+                chartSensorESP32.update();
+
+                chartSimulador.data.labels = [];
+                chartSimulador.data.datasets[0].data = [];
+                chartSimulador.update();
+
+                // Atualiza os gráficos
+                atualizarGraficoRealTime();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao alterar monitoramento da planta:', error);
+        });
+}
+
+    document.addEventListener("DOMContentLoaded", function() {
+        fetch('/api/simulador/status')
+            .then(res => res.json())
+            .then(data => atualizarUIBotao(data.ativo, 'btnSimulador', 'lblSimulador', 'Simulador'));
+            
+        fetch('/api/sensor_fisico/status')
+            .then(res => res.json())
+            .then(data => atualizarUIBotao(data.ativo, 'btnToggleSensor', 'lblSensor', 'Sensor'));
+    });
+
+    function toggleSimulador(fazendaId) {
+        const btn = document.getElementById('btnSimulador');
+        btn.disabled = true;
+
+        fetch(`/api/simulador/toggle/${fazendaId}`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                const isAtivo = (data.status === 'ativo');
+                atualizarUIBotao(isAtivo, 'btnSimulador', 'lblSimulador', 'Simulador');
+                btn.disabled = false;
+            })
+            .catch(() => btn.disabled = false);
+    }
+
+    function toggleSensorFisico() {
+        const btn = document.getElementById('btnToggleSensor');
+        btn.disabled = true;
+
+        fetch('/api/sensor_fisico/toggle', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                const isAtivo = (data.status === 'ativo');
+                atualizarUIBotao(isAtivo, 'btnToggleSensor', 'lblSensor', 'Sensor');
+                btn.disabled = false;
+            })
+            .catch(() => btn.disabled = false);
+    }
+
+    function atualizarUIBotao(ativo, btnId, lblId, nomeLabel) {
+        const btn = document.getElementById(btnId);
+        const lbl = document.getElementById(lblId);
+
+        if (ativo) {
+            btn.style.background = '#27ae60';
+            btn.style.color = 'white';
+            lbl.innerText = `${nomeLabel}: ON`;
+        } else {
+            btn.style.background = '#e0e0e0';
+            btn.style.color = '#555';
+            lbl.innerText = `${nomeLabel}: OFF`;
+        }
+    }
+
+    function atualizarGraficoRealTime() {
+        fetch(`/api/dados_grafico/${FAZENDA_ID}`)
+            .then(response => response.json())
+            .then(data => {
+                if(typeof chartSensorESP32 !== 'undefined') {
+                    chartSensorESP32.data.labels = data.labels_sensor;
+                    chartSensorESP32.data.datasets[0].data = data.dados_sensor;
+                    chartSensorESP32.update(); 
+                }
+
+                if(typeof chartSimulador !== 'undefined') {
+                    chartSimulador.data.labels = data.labels_simulador;
+                    chartSimulador.data.datasets[0].data = data.dados_simulador;
+                    chartSimulador.update();
+                }
+                
+                if (data.umidades_plantas) {
+                    Object.keys(data.umidades_plantas).forEach(id => {
+                        const val = data.umidades_plantas[id];
+                        const badge = document.getElementById(`badge-umidade-${id}`);
+                        const txtStatus = document.getElementById(`texto-status-${id}`);
+                        
+                        if (badge) {
+                            badge.querySelector('.valor').innerText = val.toFixed(1);
+                            const categoria = badge.getAttribute('data-categoria');
+                            
+                            badge.classList.remove('badge-seco', 'badge-bom', 'badge-encharcado');
+                            let mensagem = "Umidade Adequada";
+                            
+                            if (categoria === 'arida') {
+                                if (val < 5) { badge.classList.add('badge-seco'); mensagem = "Aumentar rega (Seco)"; }
+                                else if (val > 40) { badge.classList.add('badge-encharcado'); mensagem = "Diminuir rega (Excesso)"; }
+                                else { badge.classList.add('badge-bom'); mensagem = "Umidade Adequada"; }
+                            } 
+                            else if (categoria === 'tropical') {
+                                if (val < 50) { badge.classList.add('badge-seco'); mensagem = "Aumentar rega (Seco)"; }
+                                else if (val > 90) { badge.classList.add('badge-encharcado'); mensagem = "Diminuir rega (Excesso)"; }
+                                else { badge.classList.add('badge-bom'); mensagem = "Umidade Adequada"; }
+                            } 
+                            else {
+                                if (val < 30) { badge.classList.add('badge-seco'); mensagem = "Aumentar rega (Seco)"; }
+                                else if (val > 70) { badge.classList.add('badge-encharcado'); mensagem = "Diminuir rega (Excesso)"; }
+                                else { badge.classList.add('badge-bom'); mensagem = "Umidade Adequada"; }
+                            }
+                            
+                            if (txtStatus) {
+                                txtStatus.innerText = mensagem;
+                            }
+                        }
+                    });
+                }
+            })
+            .catch(error => console.error("Erro ao buscar novos dados do sensor:", error));
+    }
+
+    setInterval(atualizarGraficoRealTime, 2000);
+
+    new Chart(document.getElementById('varietyChart'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ chart_data.keys()|list|tojson }},
+            datasets: [{
+                data: {{ chart_data.values()|list|tojson }},
+                backgroundColor: ['#3A7B50', '#F8A348', '#2ECC71', '#3498DB', '#9B59B6'],
+                borderWidth: 0
+            }]
+        },
+        options: { cutout: '75%', plugins: { legend: { display: false } } }
+    });
+
+    const chartSimulador = new Chart(document.getElementById('chartSimulador'), {
+        type: 'line',
+        data: {
+            labels: {{ labels_simulador | tojson }},
+            datasets: [{
+                label: 'Simulado (%)',
+                data: {{ dados_simulador | tojson }},
+                borderColor: '#3498DB',
+                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { 
+                    beginAtZero: true, 
+                    max: 100,
+                    ticks: { callback: function(val) { return val + '%'; } }
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    const chartSensorESP32 = new Chart(document.getElementById('chartSensor'), {
+        type: 'line',
+        data: {
+            labels: {{ labels_sensor | tojson }},
+            datasets: [{
+                label: 'Sensor ESP32 (%)',
+                data: {{ dados_sensor | tojson }},
+                borderColor: '#2ECC71',
+                backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { 
+                    beginAtZero: true, 
+                    max: 100,
+                    ticks: { callback: function(val) { return val + '%'; } }
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+</script>
+
+<!-- WIDGET FLUTUANTE DE DICAS INTELIGENTES (TELA DE CARREGAMENTO) -->
+<div id="cardDicaFlutuante" class="dica-flutuante">
+    <div class="dica-header">
+        <span class="dica-titulo"><i class="fas fa-brain"></i> Dica BioUrban</span>
+        <button class="dica-fechar" onclick="fecharDica()" title="Fechar dica">&times;</button>
+    </div>
+    <p id="textoDicaIA" class="dica-texto">Carregando dica agronómica inteligente...</p>
+</div>
+
+<script>
+    // Lista de dicas geradas pela IA do BioUrban para rotacionar como tela de carregamento de jogo
+    const dicasBioUrban = [
+        "🌱 Cactos e suculentas armazenam água nos tecidos. Deixe o solo secar completamente entre as regas para evitar o apodrecimento das raízes.",
+        "💧 Hortaliças comuns preferem solos com umidade constante entre 40% e 70%. Monitore o sensor físico para evitar estresse hídrico.",
+        "🌡️ O excesso de umidade no solo bloqueia a oxigenação das raízes. Se a badge estiver azul (encharcado), reduza imediatamente o ciclo de irrigação.",
+        "☀️ Plantas tropicais necessitam de maior retenção de umidade no substrato. Mantenha os níveis sempre acima de 50% para um crescimento vigoroso.",
+        "📊 Utilize o simulador virtual em segundo plano para testar o comportamento do sistema IoT antes de conectar o ESP32 real na porta serial.",
+        "🌿 Acompanhe a predição da IA baseada em regressão linear para antecipar o ciclo de colheita dos seus lotes ativos."
+    ];
+
+    let indiceDicaAtual = 0;
+
+    function atualizarDicaFlutuante() {
+        const elementoTexto = document.getElementById('textoDicaIA');
+        const card = document.getElementById('cardDicaFlutuante');
+        
+        if (elementoTexto && card) {
+            // Efeito suave de transição (fade out/in)
+            card.style.opacity = '0';
+            setTimeout(() => {
+                elementoTexto.innerText = dicasBioUrban[indiceDicaAtual];
+                card.style.opacity = '1';
+                indiceDicaAtual = (indiceDicaAtual + 1) % dicasBioUrban.length;
+            }, 300);
+        }
+    }
+
+    function fecharDica() {
+        const card = document.getElementById('cardDicaFlutuante');
+        if (card) {
+            card.style.display = 'none';
+        }
+    }
+
+    // Inicializa a primeira dica e agenda a rotação automática a cada 10 segundos
+    document.addEventListener("DOMContentLoaded", function() {
+        const card = document.getElementById('cardDicaFlutuante');
+        if(card) {
+            card.style.transition = 'opacity 0.3s ease';
+        }
+        atualizarDicaFlutuante();
+        setInterval(atualizarDicaFlutuante, 10000); // Muda a dica a cada 10 segundos
+    });
+</script>
+{% endblock %}

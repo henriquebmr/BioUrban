@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+{% block content %}
+<div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); max-width: 600px; margin: 0 auto;">
+    <h2 style="margin-bottom: 20px; color: var(--dark-bg); font-size: 1.4rem;">Editar Lote: {{ hortalica.nome }}</h2>
+    
+    <form method="POST" style="display: flex; flex-direction: column; gap: 20px;">
+        <div>
+            <label style="font-size: 0.8rem; color: #666; margin-bottom: 8px; display: block; font-weight: 600;">Espécie / Nome</label>
+            <input type="text" name="nome" value="{{ hortalica.nome }}" required style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem;">
+        </div>
+
+        <div>
+            <label style="font-size: 0.8rem; color: #666; margin-bottom: 8px; display: block; font-weight: 600;">Tipo de Planta (Necessidade Hídrica)</label>
+            <select name="categoria_hidrica" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; background: white;">
+                <option value="hortalica" {% if hortalica.categoria_hidrica == 'hortalica' %}selected{% endif %}>Hortaliças Comuns (40%-70%)</option>
+                <option value="arida" {% if hortalica.categoria_hidrica == 'arida' %}selected{% endif %}>Cactos e Suculentas (10%-30%)</option>
+                <option value="tropical" {% if hortalica.categoria_hidrica == 'tropical' %}selected{% endif %}>Plantas Tropicais (60%-90%)</option>
+            </select>
+        </div>
+
+        <div>
+            <label style="font-size: 0.8rem; color: #666; margin-bottom: 8px; display: block; font-weight: 600;">Data de Plantio</label>
+            <input type="date" name="data_plantio" value="{{ hortalica.data_plantio }}" required style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem;">
+        </div>
+
+        <div>
+            <label style="font-size: 0.8rem; color: #666; margin-bottom: 8px; display: block; font-weight: 600;">Ciclo Estimado (Dias)</label>
+            <input type="number" name="ciclo_estimado" value="{{ hortalica.ciclo_estimado }}" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem;">
+        </div>
+
+        <div style="display: flex; gap: 15px; margin-top: 10px;">
+            <button type="submit" style="background: var(--primary-green); border: none; padding: 12px 25px; border-radius: 8px; color: white; cursor: pointer; font-weight: 700;">Salvar Alterações</button>
+            <a href="{{ url_for('ver_fazenda', id=hortalica.fazenda_id) }}" style="background: #e0e0e0; color: #333; text-decoration: none; padding: 12px 25px; border-radius: 8px; font-weight: 700; display: inline-flex; align-items: center;">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
