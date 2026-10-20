@@ -33,9 +33,10 @@ ID_FAZENDA_PADRAO = 1
 sensor_fisico_ativo = False
 thread_usb = None
 PLANTA_FOCO_ID = None
+FAZENDA_ATUAL_ID = ID_FAZENDA_PADRAO
 
 def ler_dados_usb():
-    global sensor_fisico_ativo, PLANTA_FOCO_ID
+    global sensor_fisico_ativo, PLANTA_FOCO_ID, FAZENDA_ATUAL_ID
     try:
         ser = serial.Serial(PORTA_SERIAL, VELOCIDADE_BAUD, timeout=1)
         print(f"\n[INFO] ✅ Lendo dados do BioUrban físico via {PORTA_SERIAL}\n")
@@ -58,7 +59,7 @@ def ler_dados_usb():
                                 nivel_porcentagem=float(umidade),
                                 data_leitura=datetime.now().strftime('%H:%M:%S'),
                                 origem="sensor",
-                                fazenda_id=ID_FAZENDA_PADRAO,
+                                fazenda_id=FAZENDA_ATUAL_ID,
                                 hortalica_id=PLANTA_FOCO_ID
                             )
                             db.session.add(novo_registro)
@@ -184,7 +185,8 @@ def ver_fazenda(id):
     fazenda = db.session.get(Fazenda, id)
     if not fazenda or fazenda.usuario_id != current_user.id: return "Acesso Negado", 403
     
-    global PLANTA_FOCO_ID
+    global PLANTA_FOCO_ID, FAZENDA_ATUAL_ID
+    FAZENDA_ATUAL_ID = id
     filtro = request.args.get('filtro', 'Todos')
     hoje = datetime.now().date()
     contagem_variedades = {}
@@ -439,7 +441,10 @@ def dados_grafico(fazenda_id):
             hortalica_id=PLANTA_FOCO_ID
         ).order_by(RegistroHidrico.id.desc()).limit(15).all()
     else:
-        reg_sensor = []
+        reg_sensor = RegistroHidrico.query.filter_by(
+            fazenda_id=fazenda_id,
+            origem="sensor"
+        ).order_by(RegistroHidrico.id.desc()).limit(15).all()
 
     reg_sensor.reverse()
     labels_sensor = [r.data_leitura for r in reg_sensor]
