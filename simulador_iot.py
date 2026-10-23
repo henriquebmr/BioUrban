@@ -29,24 +29,15 @@ def converter_adc_para_porcentagem(adc_val):
     """
 
     if adc_val >= ADC_SECO:
-
         porcentagem = 0.0
 
     elif adc_val >= ADC_UMIDO:
-
-        # 3115 -> 0%
-        # 2415 -> 50%
-
         porcentagem = (
             (ADC_SECO - adc_val)
             / (ADC_SECO - ADC_UMIDO)
         ) * 50.0
 
     else:
-
-        # 2415 -> 50%
-        # 1144 -> 100%
-
         porcentagem = 50.0 + (
             (ADC_UMIDO - adc_val)
             / (ADC_UMIDO - ADC_MUITO_UMIDO)
@@ -56,7 +47,7 @@ def converter_adc_para_porcentagem(adc_val):
 
 def simular_envio():
     print("="*55)
-    print("      BIOURBAN - SIMULADOR IOT REALISTA (ESP32)")
+    print("      BIOURBAN - SIMULADOR IOT PREDITIVO (ESP32)")
     print("="*55)
     
     # Solicita o ID da fazenda dinamicamente
@@ -66,18 +57,28 @@ def simular_envio():
         print("Erro: O ID deve ser um número inteiro.")
         return
 
-    print(f"\nSimulando lecturas de hardware real para a Fazenda #{fazenda_id}...")
+    print(f"\nSimulando lecturas dinâmicas para a Fazenda #{fazenda_id}...")
     print(f"Parâmetros de calibração: 0% = {ADC_SECO} | 50% = {ADC_UMIDO} | 100% = {ADC_MUITO_UMIDO}")
     print("Pressione CTRL+C para interromper a simulação.\n")
     
+    # Variável interna para controlar a queda gradual da umidade (simulando evaporação)
+    adc_atual_simulado = 1400  # Começa muito úmido (~85%)
+    
     try:
         while True:
-            # Simula a leitura analógica bruta do ADC do ESP32.
-            # Faixa variando entre Terra Seca (2945) e Terra Muito Úmida (1400)
-            adc_simulado = random.randint(ADC_MUITO_UMIDO, ADC_SECO)
+            # Simula a evaporação aumentando o valor do ADC gradualmente (o que faz a umidade cair)
+            variacao = random.randint(150, 350)
+            adc_atual_simulado += variacao
             
+            # Se secar demais (ultrapassar o limite seco), reinicia o ciclo regando de novo (volta a 100%)
+            if adc_atual_simulado > ADC_SECO:
+                print("\n[INFO] 💧 Solo seco detetado no simulador. Realizando nova 'rega' automática...")
+                adc_atual_simulado = 1400
+                time.sleep(2)
+                continue
+
             # Converte a leitura analógica para porcentagem com base na calibração
-            porcentagem = converter_adc_para_porcentagem(adc_simulado)
+            porcentagem = converter_adc_para_porcentagem(adc_atual_simulado)
             
             payload = {
                 "umidade": porcentagem,
@@ -88,15 +89,15 @@ def simular_envio():
                 response = requests.post(URL_API, json=payload)
                 
                 if response.status_code == 201:
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] RAW ADC: {adc_simulado} -> Enviado: {porcentagem}%")
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] RAW ADC: {adc_atual_simulado} -> Enviado: {porcentagem}%")
                 else:
                     print(f"[{datetime.now().strftime('%H:%M:%S')}] Erro na API: Status {response.status_code}")
             
             except requests.exceptions.ConnectionError:
                 print("Erro: Não foi possível conectar ao servidor. O app.py está rodando?")
             
-            # ESPERA 1 MINUTO (60 SEGUNDOS) PARA O PRÓXIMO ENVIO
-            time.sleep(60)
+            # Intervalo menor (5 segundos) para preencher o gráfico rapidamente e testar a Regressão Linear
+            time.sleep(5)
             
     except KeyboardInterrupt:
         print("\n\nSimulação finalizada pelo usuário.")

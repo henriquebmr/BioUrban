@@ -23,13 +23,62 @@ login_manager.login_view = 'login'
 login_manager.init_app(app)
 
 # ==============================================================================
+# FUNÇÃO DE INTELIGÊNCIA ARTIFICIAL (REGRESSÃO LINEAR PREDITIVA)
+# ==============================================================================
+def gerar_relatorio_ia(historico_umidade):
+    """
+    Analisa a curva de humidade usando Regressão Linear para prever 
+    o tempo até ao limite crítico de stress hídrico (30%).
+    """
+    relatorio = {
+        "diagnostico_ia": "Aguardando volume de dados para previsão...",
+        "acao_recomendada": "Coletando histórico."
+    }
+
+    if not historico_umidade or len(historico_umidade) < 5:
+        if historico_umidade and historico_umidade[-1] < 30:
+            relatorio["diagnostico_ia"] = "Alerta estático: Nível crítico de humidade atingido."
+            relatorio["acao_recomendada"] = "Irrigação imediata."
+        return relatorio
+
+    umidade_atual = historico_umidade[-1]
+    
+    X = np.array(range(len(historico_umidade))).reshape(-1, 1)
+    Y = np.array(historico_umidade)
+
+    modelo = LinearRegression()
+    modelo.fit(X, Y)
+    
+    taxa_variacao = modelo.coef_[0]
+
+    if umidade_atual < 30:
+        relatorio["diagnostico_ia"] = f"Humidade crítica ({umidade_atual:.1f}%). A regressão indica stress hídrico severo."
+        relatorio["acao_recomendada"] = "Irrigação de emergência necessária."
+        
+    elif taxa_variacao < -0.5:
+        passos_restantes = (30 - umidade_atual) / taxa_variacao
+        ciclos_estimados = abs(round(passos_restantes))
+        
+        relatorio["diagnostico_ia"] = f"O modelo preditivo detetou uma queda abrupta ({taxa_variacao:.2f}% por ciclo). Risco de stress hídrico em aproximadamente {ciclos_estimados} ciclos de leitura."
+        relatorio["acao_recomendada"] = "Preparar sistema de irrigação. Intervenção preditiva recomendada."
+        
+    elif umidade_atual > 70 and taxa_variacao > 0:
+        relatorio["diagnostico_ia"] = f"Saturação contínua detetada. O nível está a subir de forma atípica ({taxa_variacao:.2f}% por ciclo)."
+        relatorio["acao_recomendada"] = "Suspender rega. Verificar imediatamente a drenagem."
+        
+    else:
+        relatorio["diagnostico_ia"] = "A curva preditiva mostra que a retenção hídrica está estável e alinhada com o ciclo da planta."
+        relatorio["acao_recomendada"] = "Nenhuma intervenção necessária."
+
+    return relatorio
+
+# ==============================================================================
 # CONFIGURAÇÃO DA COMUNICAÇÃO SERIAL (USB) COM O ESP32
 # ==============================================================================
 PORTA_SERIAL = 'COM3'
 VELOCIDADE_BAUD = 9600
 ID_FAZENDA_PADRAO = 1
 
-# VARIÁVEIS GLOBAIS DE CONTROLE DO SENSOR
 sensor_fisico_ativo = False
 thread_usb = None
 PLANTA_FOCO_ID = None
@@ -39,24 +88,29 @@ def ler_dados_usb():
     global sensor_fisico_ativo, PLANTA_FOCO_ID, FAZENDA_ATUAL_ID
     try:
         ser = serial.Serial(PORTA_SERIAL, VELOCIDADE_BAUD, timeout=1)
+        ser.reset_input_buffer() # Limpa o lixo acumulado no buffer da serial
         print(f"\n[INFO] ✅ Lendo dados do BioUrban físico via {PORTA_SERIAL}\n")
         
         while True:
             if not sensor_fisico_ativo:
-                time.sleep(1)
+                time.sleep(0.5)
                 continue
                 
             if ser.in_waiting > 0:
                 linha = ser.readline().decode('utf-8', errors='ignore').strip()
                 try:
+                    # Tenta interpretar o JSON enviado pelo ESP32
                     dados = json.loads(linha)
                     umidade = dados.get('umidade')
                     status = dados.get('status')
                     
                     if umidade is not None:
+                        # Garante que o valor está estritamente entre 0 e 100%
+                        umidade_val = max(0.0, min(100.0, float(umidade)))
+                        
                         with app.app_context():
                             novo_registro = RegistroHidrico(
-                                nivel_porcentagem=float(umidade),
+                                nivel_porcentagem=umidade_val,
                                 data_leitura=datetime.now().strftime('%H:%M:%S'),
                                 origem="sensor",
                                 fazenda_id=FAZENDA_ATUAL_ID,
@@ -68,15 +122,16 @@ def ler_dados_usb():
                             if PLANTA_FOCO_ID:
                                 planta = db.session.get(Hortalica, PLANTA_FOCO_ID)
                                 if planta:
-                                    planta.umidade_atual = float(umidade)
+                                    planta.umidade_atual = umidade_val
                                     nome_planta = planta.nome
                                     
                             db.session.commit()
-                            print(f"[USB] 🌱 {nome_planta}: Umidade = {umidade}% | Status: {status}")
+                            print(f"[USB] 🌱 {nome_planta}: Umidade = {umidade_val}% | Status: {status}")
                             
                 except json.JSONDecodeError:
+                    # Ignora linhas que não sejam JSON válido (como logs de boot do ESP32)
                     pass
-            time.sleep(2)
+            time.sleep(0.5)
             
     except serial.SerialException as e:
         print(f"\n[ERRO] ❌ Falha ao conectar na porta serial {PORTA_SERIAL}")
@@ -84,7 +139,6 @@ def ler_dados_usb():
 
 thread_usb = threading.Thread(target=ler_dados_usb, daemon=True)
 thread_usb.start()
-# ==============================================================================
 
 # --- CONTROLE GLOBAL DO SIMULADOR IOT EM SEGUNDO PLANO ---
 simulador_ativo = False
@@ -259,7 +313,6 @@ def ver_fazenda(id):
         stats['media_h2o'] = round(sum(r.nivel_porcentagem for r in todos_recentes) / len(todos_recentes), 1)
         media_val = stats['media_h2o']
         
-        # Descobre a categoria da planta em foco para ajustar os limites da IA
         categoria_foco = "hortalica"
         nome_foco_str = "Planta Monitorada"
         if PLANTA_FOCO_ID:
@@ -268,7 +321,6 @@ def ver_fazenda(id):
                 categoria_foco = p_foco.categoria_hidrica or "hortalica"
                 nome_foco_str = p_foco.nome
         
-        # Define os limites com base na categoria da planta em foco
         if categoria_foco == 'arida':
             if media_val < 5:
                 stats['insight_h2o'] = {"tipo": "perigo", "msg": f"{nome_foco_str} (Árida): Nível muito baixo ({media_val}%). Considere uma rega ligeira."}
@@ -285,7 +337,7 @@ def ver_fazenda(id):
             else:
                 stats['insight_h2o'] = {"tipo": "sucesso", "msg": f"{nome_foco_str} (Tropical): Nível hídrico ideal ({media_val}%). Mantenha o fluxo."}
                 
-        else: # Hortaliças Comuns (Padrão)
+        else:
             if media_val < 30.0:
                 stats['insight_h2o'] = {"tipo": "perigo", "msg": f"{nome_foco_str}: Nível baixo ({media_val}%). Aumente a irrigação para evitar o estresse hídrico."}
             elif media_val > 70.0:
@@ -329,7 +381,6 @@ def add_hortalica(fazenda_id):
         db.session.commit()
     return redirect(url_for('ver_fazenda', id=fazenda_id))
 
-# --- ROTA PARA EDITAR HORTALIÇA ---
 @app.route('/editar_hortalica/<int:id>', methods=['GET', 'POST'])
 @login_required
 def editar_hortalica(id):
@@ -382,34 +433,20 @@ def exportar_csv(fazenda_id):
     output.headers["Content-type"] = "text/csv"
     return output
 
-# --- ENDPOINTS DA PLANTA EM FOCO ---
 @app.route('/api/focar_planta/<int:hortalica_id>', methods=['POST'])
 @login_required
 def focar_planta(hortalica_id):
     global PLANTA_FOCO_ID
-
     planta = db.session.get(Hortalica, hortalica_id)
-
     if not planta:
         return jsonify({"erro": "Planta não encontrada"}), 404
 
-    # Se já está monitorando esta planta, desativa o monitoramento
     if PLANTA_FOCO_ID == hortalica_id:
         PLANTA_FOCO_ID = None
-        return jsonify({
-            "status": "desativado",
-            "nome": planta.nome,
-            "id": hortalica_id
-        })
+        return jsonify({"status": "desativado", "nome": planta.nome, "id": hortalica_id})
 
-    # Caso contrário, começa a monitorar esta planta
     PLANTA_FOCO_ID = hortalica_id
-
-    return jsonify({
-        "status": "sucesso",
-        "nome": planta.nome,
-        "id": hortalica_id
-    })
+    return jsonify({"status": "sucesso", "nome": planta.nome, "id": hortalica_id})
 
 # --- ENDPOINTS DO SENSOR FÍSICO (USB) ---
 @app.route('/api/sensor_fisico/toggle', methods=['POST'])
@@ -428,11 +465,42 @@ def toggle_sensor_fisico():
 def status_sensor_fisico():
     return jsonify({"ativo": sensor_fisico_ativo})
 
+# --- ROTA PARA O SIMULADOR EXTERNO (SIMULADOR_IOT.PY) ---
+@app.route('/api/sensor_hidrico', methods=['POST'])
+def receber_sensor_hidrico():
+    dados = request.json
+    if not dados:
+        return jsonify({"erro": "Dados inválidos"}), 400
+    
+    umidade = dados.get('umidade')
+    fazenda_id = dados.get('fazenda_id', FAZENDA_ATUAL_ID)
+    
+    if umidade is not None:
+        global PLANTA_FOCO_ID
+        novo_registro = RegistroHidrico(
+            nivel_porcentagem=float(umidade),
+            data_leitura=datetime.now().strftime('%H:%M:%S'),
+            origem="simulador",
+            fazenda_id=int(fazenda_id),
+            hortalica_id=PLANTA_FOCO_ID
+        )
+        db.session.add(novo_registro)
+        
+        if PLANTA_FOCO_ID:
+            planta = db.session.get(Hortalica, PLANTA_FOCO_ID)
+            if planta:
+                planta.umidade_atual = float(umidade)
+                
+        db.session.commit()
+        return jsonify({"mensagem": "Registado com sucesso"}), 201
+        
+    return jsonify({"erro": "Umidade não informada"}), 400
+
 # --- ENDPOINTS DE ATUALIZAÇÃO DINÂMICA (AJAX) ---
 @app.route('/api/dados_grafico/<int:fazenda_id>', methods=['GET'])
 @login_required
 def dados_grafico(fazenda_id):
-    global PLANTA_FOCO_ID
+    global PLANTA_FOCO_ID, sensor_fisico_ativo, simulador_ativo
 
     if PLANTA_FOCO_ID:
         reg_sensor = RegistroHidrico.query.filter_by(
@@ -457,7 +525,10 @@ def dados_grafico(fazenda_id):
             hortalica_id=PLANTA_FOCO_ID
         ).order_by(RegistroHidrico.id.desc()).limit(15).all()
     else:
-        reg_simulador = []
+        reg_simulador = RegistroHidrico.query.filter_by(
+            fazenda_id=fazenda_id,
+            origem="simulador"
+        ).order_by(RegistroHidrico.id.desc()).limit(15).all()
 
     reg_simulador.reverse()
     labels_simulador = [r.data_leitura for r in reg_simulador]
@@ -470,12 +541,24 @@ def dados_grafico(fazenda_id):
         for h in fazenda.hortalicas:
             umidades_plantas[h.id] = h.umidade_atual or 0.0
 
+    # SELEÇÃO DINÂMICA DA IA COM BASE NO SENSOR ATIVO
+    historico_ia = []
+    if sensor_fisico_ativo:
+        historico_ia = dados_sensor
+    elif simulador_ativo:
+        historico_ia = dados_simulador
+    else:
+        historico_ia = dados_sensor if len(dados_sensor) >= len(dados_simulador) else dados_simulador
+        
+    analise_ia = gerar_relatorio_ia(historico_ia)
+
     return jsonify({
         "labels_sensor": labels_sensor,
         "dados_sensor": dados_sensor,
         "labels_simulador": labels_simulador,
         "dados_simulador": dados_simulador,
-        "umidades_plantas": umidades_plantas
+        "umidades_plantas": umidades_plantas,
+        "inteligencia_artificial": analise_ia
     })
 
 # --- ENDPOINTS DO SIMULADOR INTEGRADO ---
